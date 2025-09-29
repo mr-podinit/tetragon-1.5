@@ -1,0 +1,43 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: audit
+networking:
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+  kubeProxyMode: "nftables"
+featureGates:
+  KubeletPSI: true
+nodes:
+- role: control-plane
+  image: kindest/node:v1.34.0
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+        # enable auditing flags on the API server
+        extraArgs:
+          audit-log-path: /var/log/kubernetes/audit.log
+          audit-policy-file: /etc/kubernetes/audit-policy.yaml
+        # mount new files / directories on the control plane
+        extraVolumes:
+          - name: audit-policies
+            hostPath: /etc/kind/audit-policy.yaml
+            mountPath: /etc/kubernetes/audit-policy.yaml
+            readOnly: true
+            pathType: "File"
+          - name: "audit-logs"
+            hostPath: "/var/log/kubernetes"
+            mountPath: "/var/log/kubernetes"
+            readOnly: false
+            pathType: DirectoryOrCreate
+  # mount the local file on the control plane
+  extraMounts:
+  - hostPath: /etc/kind/audit-policy.yaml
+    containerPath: /etc/kind/audit-policy.yaml
+    readOnly: true
+  - hostPath: /var/log/kubernetes/
+    containerPath: /var/log/kubernetes/
+    readOnly: false
+  - hostPath: /var/log/journal/
+    containerPath: /var/log/journal/
+    readOnly: false

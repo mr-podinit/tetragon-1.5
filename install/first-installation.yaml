@@ -1,0 +1,63 @@
+# https://artifacthub.io/packages/helm/cilium/tetragon
+# helm upgrade --install tetragon cilium/tetragon -n kube-system --values first-installation.yaml --version 1.5.0
+
+
+# Configurazione per containerd e k0s
+extraVolumes:
+  - name: var-run-containerd
+    hostPath:
+      path: /var/run/containerd
+      type: Directory
+  - name: sys-kernel-security
+    hostPath:
+      path: /sys/kernel/security
+      type: Directory
+tetragon:
+  # extraArgs:
+  #   enable-cri: false
+  #   enable-cgidmap: true
+  #   cri-endpoint: unix:///var/run/containerd/containerd.sock
+  # extraVolumeMounts:
+  #   - name: var-run-containerd
+  #     mountPath: /var/run/containerd
+  #   - name: sys-kernel-security
+  #     mountPath: /sys/kernel/security
+  debug: false
+  # -- JSON export filename. Set it to an empty string to disable JSON export altogether.
+  exportFilename: tetragon.log
+  # -- Size in megabytes at which to rotate JSON export files.
+  exportFileMaxSizeMB: 100
+  # -- Number of rotated files to retain.
+  exportFileMaxBackups: 10
+  # -- Compress rotated JSON export files.
+  exportFileCompress: true
+  # -- Rate-limit event export (events per minute), Set to -1 to export all events.
+  exportRateLimit: -1
+
+  exportAllowList: |-
+    {"event_set":["PROCESS_EXEC"]}
+  # -- Denylist for JSON export. For example, to exclude exec events that look similar to
+  # Kubernetes health checks and all the events from kube-system namespace and the host:
+  # exportDenyList: |
+  #   {"health_check":true}
+  #   {"namespace":["kube-system",""]}
+  exportDenyList: |-
+    {"health_check":true}
+    {"namespace":[""]}
+  fieldFilters: |
+    {"fields": "parent", "action": "EXCLUDE"}
+  
+  # redactionFilters: |-
+  #   {"redact": ["--password[=\s]\s*(\S*)"]}
+
+  prometheus:
+    enabled: false
+
+  clusterName: "k0s"
+  enableK8sAPI: true
+  enableProcessCred: true
+  enableProcessNs: true
+
+rthooks:
+  enabled: false
+  interface: "oci-hooks"
