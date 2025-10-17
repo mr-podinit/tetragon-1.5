@@ -1,4 +1,4 @@
-# Introduction
+Introduction
 
 This repository contains all the files used during the Youtube video about Tetragon
 
@@ -6,23 +6,32 @@ This repository contains all the files used during the Youtube video about Tetra
 
 # Setup
 
-## Configure k0s
+## Configure Kind
 
-Copy k0s/config.yaml in /etc/k0s, create it.
+Copy kind/config.yaml in /etc/kind, create it.
 
 ```bash
-sudo mkdir -p /etc/k0s/
-sudo cp config.yaml /etc/k0s/
-sudo k0s install controller  --single -c /etc/k0s/config.yaml
+sudo mkdir -p /etc/kind/
+sudo cp kind/*.yaml /etc/kind/
+sudo mkdir -p /var/log/kubernetes
+sudo chmod 755 /var/log/kubernetes
+sudo kind create cluster --config kind/config.yaml
+helm repo add cilium https://helm.cilium.io
+helm repo update
+helm upgrade --install tetragon cilium/tetragon -n kube-system --values install/first-installation.yaml --version 1.5.0
+
 k0s 
 ```
 
 ## Useful commands
 
 ```bash
-
 ```
 
 
 # Links
 
+* https://mtardy.com/posts/try-tetragon-on-linux/
+* https://ebpf.hamza-megahed.com/docs/chapter5/5-tetragon/
+* https://srekubecraft.io/posts/tetragon/
+* <https://medium.com/@techpaul/my-favourite-kubernetes-audit-log-policy-385ab8a4200a>
