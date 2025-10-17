@@ -20,7 +20,6 @@ helm repo add cilium https://helm.cilium.io
 helm repo update
 helm upgrade --install tetragon cilium/tetragon -n kube-system --values install/first-installation.yaml --version 1.5.0
 
-k0s 
 ```
 
 ## Useful commands
