@@ -1,0 +1,69 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Non omettere nessuno stage - log tutto
+omitStages: []
+rules:
+  # Log completo per operazioni critiche su pod (exec, debug, etc.)
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward", "pods/ephemeralcontainers"]
+      - group: ""
+        resources: ["pods/log", "pods/status"]
+    namespaces: ["default", "kube-system", "kube-public", "kube-node-lease"]
+
+  # Log completo per tutte le operazioni sui pod
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods"]
+    verbs: ["create", "update", "patch", "delete"]
+
+  # Log completo per secrets e configmaps
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+
+  # Log completo per servizi e deployment
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["services", "endpoints"]
+      - group: "apps"
+        resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+      - group: "extensions"
+        resources: ["deployments", "replicasets"]
+
+  # Log completo per RBAC
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["roles", "clusterroles", "rolebindings", "clusterrolebindings"]
+
+  # Log completo per network policies e storage
+  - level: RequestResponse
+    resources:
+      - group: "networking.k8s.io"
+        resources: ["networkpolicies"]
+      - group: ""
+        resources: ["persistentvolumes", "persistentvolumeclaims"]
+      - group: "storage.k8s.io"
+        resources: ["storageclasses"]
+
+  # Log per admission controllers e webhooks
+  - level: RequestResponse
+    resources:
+      - group: "admissionregistration.k8s.io"
+        resources: ["validatingadmissionwebhooks", "mutatingadmissionwebhooks"]
+
+  # Log per custom resources (incluso Tetragon)
+  - level: RequestResponse
+    resources:
+      - group: "cilium.io"
+        resources: ["*"]
+      - group: "apiextensions.k8s.io"
+        resources: ["customresourcedefinitions"]
+
+  # Log per tutto il resto con livello Request (meno verboso ma completo)
+  - level: Request

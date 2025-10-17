@@ -9,7 +9,16 @@ featureGates:
   KubeletPSI: true
 nodes:
 - role: control-plane
+
+  # Porta utile per i test HTTP
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 30080
+    listenAddress: "0.0.0.0"
+    protocol: tcp
   image: kindest/node:v1.34.0
+
+  # Configurazioni specifiche per il control plane
   kubeadmConfigPatches:
   - |
     kind: ClusterConfiguration
@@ -18,6 +27,7 @@ nodes:
         extraArgs:
           audit-log-path: /var/log/kubernetes/audit.log
           audit-policy-file: /etc/kubernetes/audit-policy.yaml
+          tracing-config-file: /etc/kubernetes/tracing.yaml
         # mount new files / directories on the control plane
         extraVolumes:
           - name: audit-policies
@@ -25,15 +35,24 @@ nodes:
             mountPath: /etc/kubernetes/audit-policy.yaml
             readOnly: true
             pathType: "File"
+          - name: tracing
+            hostPath: /etc/kind/tracing.yaml
+            mountPath: /etc/kubernetes/tracing.yaml
+            readOnly: true
+            pathType: "File"
           - name: "audit-logs"
             hostPath: "/var/log/kubernetes"
             mountPath: "/var/log/kubernetes"
             readOnly: false
             pathType: DirectoryOrCreate
-  # mount the local file on the control plane
+
+  # Mount della policy di audit, journal (per Grafana) e log di Kubernetes
   extraMounts:
   - hostPath: /etc/kind/audit-policy.yaml
     containerPath: /etc/kind/audit-policy.yaml
+    readOnly: true
+  - hostPath: /etc/kind/tracing.yaml
+    containerPath: /etc/kind/tracing.yaml
     readOnly: true
   - hostPath: /var/log/kubernetes/
     containerPath: /var/log/kubernetes/

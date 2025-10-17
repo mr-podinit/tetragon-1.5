@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auditlog
+  namespace: kube-system
+data:
+  tail.py: |
+    import sys
+    import time
+    import json
+    import os
+    from datetime import datetime, timedelta, timezone
+    from urllib.parse import urlparse, parse_qs
+
+    def parse_log_line(line):
+        try:
+            data = json.loads(line)
+        except Exception:
+            return None
+        ref = data.get("objectRef", {})
+        if ref.get("subresource") != "exec":
+            return None
+        stage_ts = data.get("stageTimestamp") or data.get("requestReceivedTimestamp")
+        if not stage_ts:
+            return None
+        try:
+            ts = datetime.strptime(stage_ts, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+        user = data.get("user", {})
+        pod = ref.get("name", "")
+        namespace = ref.get("namespace", "")
+        username = user.get("username")
+        groups = user.get("groups", [])
+        sourceip = ",".join(data.get("sourceIPs", []))
+        request_uri = data.get("requestURI", "")
+        parsed_url = urlparse(request_uri)
+        params = parse_qs(parsed_url.query, keep_blank_values=True)
+        command_list = params.get("command", [])
+        if command_list:
+            command_full = " ".join(command_list)
+            first_command = command_list[0] if command_list else ""
+            remaining_commands = " ".join(command_list[1:]) if len(command_list) > 1 else ""
+        else:
+            command_full = ""
+            first_command = ""
+            remaining_commands = ""
+        return {
+            "timestamp": ts.isoformat(),
+            "sourceip": sourceip,
+            "username": username,
+            "groups": groups,
+            "full_command": command_full,
+            "first_command": first_command,
+            "remaining_commands": remaining_commands,
+            "pod": pod,
+            "namespace": namespace,
+            "level": "INFO",
+        }
+
+    def main():
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("logfile")
+        parser.add_argument("--minutes", type=int, default=10, help="Window in minutes")
+        args = parser.parse_args()
+
+        window = timedelta(minutes=args.minutes)
+        with open(args.logfile, "r") as f:
+            f.seek(0, os.SEEK_END)
+            while True:
+                where = f.tell()
+                line = f.readline()
+                if not line:
+                    time.sleep(1)
+                    f.seek(where)
+                else:
+                    entry = parse_log_line(line)
+                    if entry is None:
+                        continue
+                    entry_time = datetime.fromisoformat(entry["timestamp"])
+                    if datetime.now(timezone.utc) - entry_time > window:
+                        continue
+                    print(json.dumps(entry), flush=True)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: auditlog
+  namespace: kube-system
+  labels:
+    k8s-app: auditlog
+spec:
+  selector:
+    matchLabels:
+      name: auditlog
+  template:
+    metadata:
+      labels:
+        name: auditlog
+    spec:
+      containers:
+      - name: auditlog
+        image: python:3.9-slim
+        command:
+          - /usr/local/bin/python3
+          - /scripts/tail.py
+          - --minutes
+          - "120"
+          - /var/log/kubernetes/audit.log 
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+          - name: varlog
+            mountPath: /var/log/
+          - name: config-volume
+            mountPath: /scripts
+      terminationGracePeriodSeconds: 5
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: config-volume
+          configMap:
+            name: auditlog
